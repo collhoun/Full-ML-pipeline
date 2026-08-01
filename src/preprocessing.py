@@ -3,6 +3,44 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
 
 class DataPreprocessor:
+    """Класс для препроцессинга признаков домов из набора данных Ames Housing.
+
+    Основное назначение:
+    - выбор нужных колонок по заданным спискам признаков
+    - кодирование категориальных признаков
+    - заполнение пропусков нулями (кроме целевой колонки)
+    - масштабирование числовых признаков
+    - обучение трансформеров на тренировочных данных
+
+    Этот класс готовит матрицу признаков для моделей, ожидающих числовой вход.
+    Он не должен сам управлять разбиением на X и y, но может выполнять очистку строк
+    в методе `clean_train_data` для тренировочного набора.
+
+    Параметры:
+        drop: None | str
+            Передается в `OneHotEncoder(drop=drop)`.
+            При `drop='first'` сохраняется OHE без одной из категорий.
+            При `drop=None` сохраняются все бинарные колонки.
+
+    Важные ограничения:
+    - метод `clean_train_data` удаляет строки, поэтому его лучше вызывать до выделения X и y.
+    - метод `feature_selection` ожидает наличие всех признаков из `self.features`.
+    - `fill_missing_with_zeroes` не заполняет пропуски в `SalePrice`.
+    - `OneHotEncoder(handle_unknown='ignore')` безопасно обрабатывает новые категории на инференсе,
+      но для них не создаются новые колонки.
+
+    Методы:
+    - fit(df): обучает OHE и StandardScaler на тренировочных данных.
+    - transform(df): применяет кодирование и масштабирование к новым данным.
+    - fit_transform(df): вызывает `fit` и сразу `transform`.
+    - feature_selection(df): выбирает нужные признаки и, при наличии, целевой столбец.
+    - code_categories(df): кодирует `CentralAir`, ordinal-признаки и применяет OHE к `one_hots`.
+    - _get_scale_columns(): возвращает колонки для масштабирования.
+    - fill_missing_with_zeroes(df): заполняет пропуски нулями по признакам.
+    - delete_dublicated(df): удаляет дубликаты строк.
+    - delete_anomalies(df): удаляет аномалии по `GrLivArea` и `SalePrice`.
+    - clean_train_data(df): объединяет удаление дубликатов и аномалий.
+    """
 
     numeric_columns = ['BsmtFullBath', 'WoodDeckSF', 'Fireplaces', '3SsnPorch', 'ScreenPorch', 'MSSubClass', 'LotArea', 'GrLivArea', 'FullBath',
                        'PoolArea', 'YearBuilt', 'LowQualFinSF', 'OpenPorchSF', 'OverallQual', 'GarageArea', 'BsmtHalfBath', 'YearRemodAdd', 'EnclosedPorch', 'OverallCond', 'KitchenAbvGr', 'MiscVal']
@@ -68,7 +106,7 @@ class DataPreprocessor:
         encoded = self.ohe_encoder.transform(df[self.one_hots])
         encoded_cols = self.ohe_encoder.get_feature_names_out(self.one_hots)
         encoded_df = pd.DataFrame(
-            encoded, columns=encoded_cols, index=df.index)
+            encoded, columns=encoded_cols, index=df.index)  # type: ignore
 
         df = df.drop(columns=self.one_hots)
         df = pd.concat([df, encoded_df], axis=1)
