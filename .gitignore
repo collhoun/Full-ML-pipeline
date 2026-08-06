@@ -14,6 +14,9 @@
 *.tax2010
 *.vcf
 *.xml
+NOTES.md
+.vscode
+models/
 
 ### Git ###
 # Created by git for backups. To disable backups in Git:
