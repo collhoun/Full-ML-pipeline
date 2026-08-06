@@ -2,8 +2,8 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
 
-class DataPreprocessor:
-    """Класс для препроцессинга признаков домов из набора данных Ames Housing.
+class LinearDataPreprocessor:
+    """Класс для препроцессора признаков домов из набора данных Ames Housing.
 
     Основное назначение:
     - выбор нужных колонок по заданным спискам признаков
