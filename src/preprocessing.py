@@ -1,4 +1,5 @@
 import pandas as pd
+from pandas import DataFrame
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from abc import ABC, abstractmethod
 
@@ -156,7 +157,7 @@ class BaseDataPreprocessor(ABC):
         """
         df_processed = self.feature_selection(df)
         df_processed = self._base_category_imputation(df_processed)
-        df_processed = self.code_categories_with_ohe(df_processed)
+        df_processed = self._encode_categories_specific(df_processed)
         df_processed = self.fill_missing_with_zeroes(df_processed)
         df_processed = self._scale_specific(df_processed)
         return df_processed
@@ -166,7 +167,7 @@ class BaseDataPreprocessor(ABC):
         return self.fit(df).transform(df)
 
     @abstractmethod
-    def code_categories_with_ohe(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _encode_categories_specific(self, df: pd.DataFrame) -> pd.DataFrame:
         """Кодирование категориальных переменных (OHE, Ordinal и т.д.)"""
         pass
 
@@ -211,7 +212,7 @@ class LinearDataPreprocessor(BaseDataPreprocessor):
         self.ohe_encoder = OneHotEncoder(
             handle_unknown='ignore', sparse_output=False, drop=drop)
 
-    def code_categories_with_ohe(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _encode_categories_specific(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Применяет OneHotEncoder к one_hots-колонкам.
         Ordinal-признаки и CentralAir кодируются раньше, в _base_category_imputation.
@@ -252,7 +253,7 @@ class LinearDataPreprocessor(BaseDataPreprocessor):
         """
         self.ohe_encoder.fit(df[self.one_hots])
 
-        df_encoded = self.code_categories_with_ohe(df)
+        df_encoded = self._encode_categories_specific(df)
         scale_columns = self._get_scale_columns()
         self.scaler.fit(df_encoded[scale_columns])
 
@@ -261,7 +262,7 @@ class LinearDataPreprocessor(BaseDataPreprocessor):
         Применяет обученный scaler к scale_columns.
 
         Args:
-            df (pd.DataFrame): данные после code_categories_with_ohe и fill_missing_with_zeroes
+            df (pd.DataFrame): данные после _encode_categories_specific и fill_missing_with_zeroes
 
         Returns:
             pd.DataFrame: датафрейм с отмасштабированными колонками
@@ -269,4 +270,39 @@ class LinearDataPreprocessor(BaseDataPreprocessor):
         df = df.copy()
         scale_columns = self._get_scale_columns()
         df[scale_columns] = self.scaler.transform(df[scale_columns])
+        return df
+
+
+class CatBoostDataPreprocessor(BaseDataPreprocessor):
+    """..."""
+
+    cat_string_columns = ['Foundation', 'GarageType', 'Electrical']
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def _encode_categories_specific(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Подготавливает строковые категориальные признаки для CatBoost.
+        Вместо OHE мы просто убеждаемся, что они имеют тип str и не содержат NaN.
+        """
+        df = df.copy()
+        for col in self.cat_string_columns:
+            if col in df.columns:
+                # как я понял catboost не любит float(NaN), поэтому заполняем Missing
+                df[col] = df[col].fillna('Missing').astype(str)
+        return df
+
+    def _fit_specific(self, df: DataFrame) -> None:
+        """
+        Для CatBoost не требуется специфичного обучения (fit) на этом этапе.
+        Алгоритм сам разберется со строками во время обучения модели.
+        """
+        pass
+
+    def _scale_specific(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        деревянные модели инвариантны к масштабу признаков.
+        Скейлинг не требуется.
+        """
         return df
