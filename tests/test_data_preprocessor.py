@@ -1,13 +1,13 @@
 import pytest
 import numpy as np
 import pandas as pd
-from src.preprocessing import DataPreprocessor
+from src.preprocessing import LinearDataPreprocessor
 
 
 @pytest.fixture
 def generate_train_data():
     """Фикстура, которая генерирует фейковый тренировочный датасет"""
-    preprocessor = DataPreprocessor()
+    preprocessor = LinearDataPreprocessor()
     df = pd.DataFrame(columns=preprocessor.features +
                       [preprocessor.target_column])
 
@@ -19,11 +19,11 @@ def generate_train_data():
     df['SalePrice'] = [200000, 150000, 300000]  # Таргет
 
     for col in preprocessor.numeric_columns:
-        if col not in df.columns:
+        if df[col].isna().all():
             df[col] = 1.0
 
     for col in preprocessor.category_columns:
-        if col not in df.columns:
+        if df[col].isna().all():
             df[col] = 'TA'
 
     return df
@@ -32,13 +32,13 @@ def generate_train_data():
 @pytest.fixture
 def fitted_preprocessor(generate_train_data):
     """Фикстура: возвращает обученный препроцессор"""
-    preprocessor = DataPreprocessor()
+    preprocessor = LinearDataPreprocessor()
     preprocessor.fit(generate_train_data)
     return preprocessor
 
 
 def test_calcualte_electrical_mode(generate_train_data):
-    preprocessor = DataPreprocessor()
+    preprocessor = LinearDataPreprocessor()
     preprocessor.fit(generate_train_data)
     assert preprocessor.electrical_mode == 'SBrkr'
 
@@ -64,6 +64,6 @@ def test_transform_works_without_target(fitted_preprocessor, generate_train_data
 
 def test_central_air_logic(fitted_preprocessor, generate_train_data):
     df_selected = fitted_preprocessor.feature_selection(generate_train_data)
-    encoded_df = fitted_preprocessor.code_categories(df_selected)
+    encoded_df = fitted_preprocessor._base_category_imputation(df_selected)
     assert encoded_df['CentralAir'].iloc[0] == 1
     assert encoded_df['CentralAir'].iloc[1] == 0
