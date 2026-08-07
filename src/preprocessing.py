@@ -6,8 +6,10 @@ from abc import ABC, abstractmethod
 class BaseDataPreprocessor(ABC):
     """Абстрактный базовый класс для препроцессинга данных Ames Housing.
 
-    Содержит общую логику очистки, выбора фичей и заполнения пропусков.
-    Определяет шаблон работы методов fit, transform и fit_transform.
+    Обеспечивает общий pipeline подготовки признаков: выбор нужных колонок,
+    базовую импутацию категориальных признаков, заполнение пропусков нулями
+    и шаблон обучения/применения трансформеров. Дочерние классы отвечают за
+    специфичное кодирование категориальных признаков и масштабирование.
     """
 
     numeric_columns = [
@@ -107,13 +109,17 @@ class BaseDataPreprocessor(ABC):
         return df
 
     def _base_category_imputation(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Общая базовая импутация категорий до закодирования
+        """Выполняет базовую обработку категориальных признаков перед кодированием.
+
+        Преобразует колонку CentralAir в бинарный формат, кодирует ordinal-поля
+        по словарю qual_map, заполняет GarageType значением NoGarage и
+        подставляет наиболее частое значение Electrical, рассчитанное на этапе fit.
 
         Args:
             df (pd.DataFrame): входная выборка
 
         Returns:
-            pd.DataFrame: обще закодированная выборка
+            pd.DataFrame: подготовленная выборка с базово закодированными признаками
         """
         df = df.copy()
         df['CentralAir'] = df['CentralAir'].apply(
@@ -128,9 +134,14 @@ class BaseDataPreprocessor(ABC):
     # --- ШАБЛОННЫЕ ПУБЛИЧНЫЕ МЕТОДЫ (Единый API) ---
 
     def fit(self, df: pd.DataFrame):
+        """Обучает параметры препроцессора на тренировочных данных.
+
+        На этапе fit вычисляется наиболее частое значение Electrical,
+        затем выполняется отбор признаков, базовая импутация категорий,
+        заполнение пропусков и обучение специфичных трансформеров.
+        """
         self.electrical_mode = df['Electrical'].mode()[0]
 
-        # Вызываем специфичное для дочернего класса обучение кодировщиков/скейлеров
         df_clean = self.feature_selection(df)
         df_clean = self._base_category_imputation(df_clean)
         df_clean = self.fill_missing_with_zeroes(df_clean)
@@ -138,6 +149,11 @@ class BaseDataPreprocessor(ABC):
         return self
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Применяет обученные преобразования к новым данным.
+
+        Выполняет отбор признаков, базовую обработку категориальных колонок,
+        кодирование категорий, заполнение пропусков и масштабирование.
+        """
         df_processed = self.feature_selection(df)
         df_processed = self._base_category_imputation(df_processed)
         df_processed = self.code_categories_with_ohe(df_processed)
@@ -146,6 +162,7 @@ class BaseDataPreprocessor(ABC):
         return df_processed
 
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Сначала обучает трансформеры, затем сразу применяет их к данным."""
         return self.fit(df).transform(df)
 
     @abstractmethod
@@ -165,43 +182,26 @@ class BaseDataPreprocessor(ABC):
 
 
 class LinearDataPreprocessor(BaseDataPreprocessor):
-    """Класс для препроцессора признаков домов из набора данных Ames Housing.
+    """Препроцессор для линейных моделей на данных Ames Housing.
 
-    Основное назначение:
-    - выбор нужных колонок по заданным спискам признаков
-    - кодирование категориальных признаков
-    - заполнение пропусков нулями (кроме целевой колонки)
-    - масштабирование числовых признаков
-    - обучение трансформеров на тренировочных данных
-
-    Этот класс готовит матрицу признаков для моделей, ожидающих числовой вход.
-    Он не должен сам управлять разбиением на X и y, но может выполнять очистку строк
-    в методе `clean_train_data` для тренировочного набора.
+    Подготавливает признаки для моделей, работающих с числовым входом:
+    отбирает нужные колонки, кодирует базовые категориальные признаки,
+    применяет one-hot encoding к колонкам Foundation, GarageType и Electrical,
+    масштабирует числовые, ordinal и one-hot признаки с помощью StandardScaler.
 
     Параметры:
         drop: None | str
-            Передается в `OneHotEncoder(drop=drop)`.
-            При `drop='first'` сохраняется OHE без одной из категорий.
-            При `drop=None` сохраняются все бинарные колонки.
+            Передается в OneHotEncoder(drop=drop). При drop='first' одна из
+            категорий исключается из матрицы признаков, при drop=None
+            сохраняются все бинарные колонки.
 
-    Важные ограничения:
-    - метод `clean_train_data` удаляет строки, поэтому его лучше вызывать до выделения X и y.
-    - метод `feature_selection` ожидает наличие всех признаков из `self.features`.
-    - `fill_missing_with_zeroes` не заполняет пропуски в `SalePrice`.
-    - `OneHotEncoder(handle_unknown='ignore')` безопасно обрабатывает новые категории на инференсе,
-      но для них не создаются новые колонки.
-
-    Методы:
-    - fit(df): обучает OHE и StandardScaler на тренировочных данных.
-    - transform(df): применяет кодирование и масштабирование к новым данным.
-    - fit_transform(df): вызывает `fit` и сразу `transform`.
-    - feature_selection(df): выбирает нужные признаки и, при наличии, целевой столбец.
-    - code_categories_with_ohe(df): кодирует `CentralAir`, ordinal-признаки и применяет OHE к `one_hots`.
-    - _get_scale_columns(): возвращает колонки для масштабирования.
-    - fill_missing_with_zeroes(df): заполняет пропуски нулями по признакам.
-    - delete_dublicated(df): удаляет дубликаты строк.
-    - delete_anomalies(df): удаляет аномалии по `GrLivArea` и `SalePrice`.
-    - clean_train_data(df): объединяет удаление дубликатов и аномалий.
+    Важные особенности:
+    - для заполнения пропусков в Electrical используется наиболее частое
+      значение, вычисленное на этапе fit;
+    - метод clean_train_data следует вызывать до разбиения на X и y,
+      потому что он удаляет строки из обучающей выборки;
+    - OneHotEncoder(handle_unknown='ignore') безопасно обрабатывает новые
+      категории на инференсе, но не создает для них новые колонки.
     """
     one_hots = ['Foundation', 'GarageType', 'Electrical']
 
