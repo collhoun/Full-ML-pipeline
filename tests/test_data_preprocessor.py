@@ -40,7 +40,7 @@ def fitted_preprocessor(generate_train_data):
 def test_calcualte_electrical_mode(generate_train_data):
     preprocessor = LinearDataPreprocessor()
     preprocessor.fit(generate_train_data)
-    assert preprocessor.electrical_mode == 'SBrkr'
+    assert preprocessor.train_modes['Electrical'] == 'SBrkr'
 
 
 def test_transform_remove_all_nans(fitted_preprocessor, generate_train_data):
