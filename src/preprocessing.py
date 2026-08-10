@@ -31,8 +31,17 @@ class BaseDataPreprocessor(ABC):
     ]
     target_column = 'SalePrice'
 
+    # Колонки, где NaN означает физическое отсутствие объекта (заполняем 0)
+    absence_zero_cols = [
+        'GarageArea', 'BsmtFullBath', 'BsmtHalfBath', 'Fireplaces', 'PoolArea',
+        'WoodDeckSF', 'OpenPorchSF', 'EnclosedPorch', '3SsnPorch', 'ScreenPorch'
+    ]
+    absence_zero_ordinal_cols = ['BsmtQual',
+                                 'BsmtCond', 'GarageQual', 'GarageCond']
+
     def __init__(self) -> None:
-        self.electrical_mode = None
+        self.train_medians = {}
+        self.train_modes = {}
 
     def delete_dublicated(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -92,23 +101,6 @@ class BaseDataPreprocessor(ABC):
             cols_to_keep.append(self.target_column)
         return df[cols_to_keep].copy()
 
-    def fill_missing_with_zeroes(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        заполняет пропуски нулями
-
-        Args:
-            df (pd.DataFrame): выборка данных
-
-        Returns:
-            pd.DataFrame: данные с заполненными пропусками
-        """
-        df = df.copy()
-        missing_info = df.isnull().sum()
-        missing_cols = missing_info[(missing_info > 0) & (
-            missing_info.index != self.target_column)]
-        df[missing_cols.index] = df[missing_cols.index].fillna(0)
-        return df
-
     def _base_category_imputation(self, df: pd.DataFrame) -> pd.DataFrame:
         """Выполняет базовую обработку категориальных признаков перед кодированием.
 
@@ -123,13 +115,33 @@ class BaseDataPreprocessor(ABC):
             pd.DataFrame: подготовленная выборка с базово закодированными признаками
         """
         df = df.copy()
-        df['CentralAir'] = df['CentralAir'].apply(
-            lambda x: 1 if x == 'Y' else 0)
+        df['CentralAir'] = df['CentralAir'].map({'Y': 1, 'N': 0})
         for column in self.ordinal_columns:
-            df[column] = df[column].map(self.qual_map).fillna(0)
+            df[column] = df[column].map(self.qual_map)
         df['GarageType'] = df['GarageType'].fillna('NoGarage')
-        if self.electrical_mode is not None:
-            df['Electrical'] = df['Electrical'].fillna(self.electrical_mode)
+        return df
+
+    def handle_missing_values(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Умное заполнение пропусков:
+        1. Логическое отсутствие -> 0
+        2. Неизвестные числа -> Медиана (из train)
+        3. Неизвестные категории -> Мода (из train)
+        """
+        df = df.copy()
+
+        for col in self.absence_zero_cols + self.absence_zero_ordinal_cols:
+            if col in df.columns:
+                df[col] = df[col].fillna(0)
+
+        for col, median_val in self.train_medians.items():
+            if col in df.columns:
+                df[col] = df[col].fillna(median_val)
+
+        for col, mode_val in self.train_modes.items():
+            if col in df.columns:
+                df[col] = df[col].fillna(mode_val)
+
         return df
 
     # --- ШАБЛОННЫЕ ПУБЛИЧНЫЕ МЕТОДЫ (Единый API) ---
@@ -141,11 +153,24 @@ class BaseDataPreprocessor(ABC):
         затем выполняется отбор признаков, базовая импутация категорий,
         заполнение пропусков и обучение специфичных трансформеров.
         """
-        self.electrical_mode = df['Electrical'].mode()[0]
 
         df_clean = self.feature_selection(df)
         df_clean = self._base_category_imputation(df_clean)
-        df_clean = self.fill_missing_with_zeroes(df_clean)
+        # Считаем медианы для заполнения на инфересне
+        num_cols = self.numeric_columns + self.ordinal_columns
+        for col in num_cols:
+            if (col not in self.absence_zero_cols
+                    and col not in self.absence_zero_ordinal_cols
+                    and col in df_clean.columns):
+                self.train_medians[col] = df_clean[col].median()
+
+        # Считаем моды для заполнения на инфересне
+        str_cat_cols = [
+            col for col in self.category_columns if col not in self.ordinal_columns]
+        for col in str_cat_cols:
+            if col in df_clean.columns and not df_clean[col].dropna().empty:
+                self.train_modes[col] = df_clean[col].mode()[0]
+        df_clean = self.handle_missing_values(df_clean)
         self._fit_specific(df_clean)
         return self
 
@@ -157,8 +182,8 @@ class BaseDataPreprocessor(ABC):
         """
         df_processed = self.feature_selection(df)
         df_processed = self._base_category_imputation(df_processed)
+        df_processed = self.handle_missing_values(df_processed)
         df_processed = self._encode_categories_specific(df_processed)
-        df_processed = self.fill_missing_with_zeroes(df_processed)
         df_processed = self._scale_specific(df_processed)
         return df_processed
 
