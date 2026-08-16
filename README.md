@@ -44,6 +44,8 @@
 | **ElasticNet** (`GridSearchCV`, `alpha`, `l1_ratio`) | **~12.4%** | **0.829** | **$21 531** | **Baseline** — выбран за меньшую ошибку. Слабая L1-регуляризация: почти все признаки полезны |
 | **CatBoost** (`iterations=412`, `lr=0.05`, `eval_metric='MAPE'`, `early_stopping_rounds=50`) | **~10.7%** | **0.895** | **$17 621** | **Champion** — превосходит линейную модель, работает со строками напрямую |
 
+***Место на соревновании Kaggle: 2170 из 3700, score: 0.13819***
+
 Детали экспериментов: `notebooks/linear_models.ipynb`, `notebooks/tree_models.ipynb`.
 
 ---
