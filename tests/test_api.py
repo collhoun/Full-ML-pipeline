@@ -44,3 +44,33 @@ def test_predict_validation_error():
     }
     response = client.post("/predict", json=payload)
     assert response.status_code == 422  # Error: Unprocessable Entity
+
+
+def test_web_ui_is_served():
+    """Тест: корневой маршрут отдаёт HTML-страницу интерфейса"""
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Оценка стоимости дома" in response.text
+
+
+def test_static_assets_are_served():
+    """Тест: css и js интерфейса доступны"""
+    for path in ("/static/style.css", "/static/app.js"):
+        response = client.get(path)
+        assert response.status_code == 200, path
+
+
+def test_ui_units_payload_matches_api_contract():
+    """Тест: конвертация м² -> кв. футы из интерфейса даёт валидный запрос к API"""
+    sqm = 159
+    payload = {
+        "GrLivArea": round(sqm * 10.7639, 2),
+        "OverallQual": 7,
+        "YearBuilt": 2003,
+        "LotArea": 8450.0,
+        "OverallCond": 5,
+    }
+    response = client.post("/predict", json=payload)
+    assert response.status_code == 200
+    assert response.json()["predicted_price"] > 0
