@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оценка стоимости дома — Ames Housing</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
+</head>
+<body>
+<div class="page">
+
+    <header class="hero">
+        <h1>Оценка стоимости дома</h1>
+        <p class="hero-sub">
+            Заполните ключевые параметры жилья — модель машинного обучения рассчитает
+            ориентировочную стоимость в долларах США.
+        </p>
+        <div class="badges">
+            <span class="badge badge-model">CatBoost · MAPE ≈ 10.7%</span>
+            <span class="badge">Модель обучена на датасете Ames Housing</span>
+        </div>
+    </header>
+
+    <main class="layout">
+
+        <!-- ==================== ФОРМА ==================== -->
+        <form class="card form" id="house-form" novalidate>
+
+            <!-- Единицы измерения -->
+            <div class="units-bar">
+                <span class="units-label">Единицы площади:</span>
+                <div class="segmented" role="radiogroup" aria-label="Единицы площади">
+                    <button type="button" class="seg is-active" data-unit="sqm">м²</button>
+                    <button type="button" class="seg" data-unit="sqft">кв. футы</button>
+                </div>
+            </div>
+
+            <!-- ---------- Базовая оценка ---------- -->
+            <section class="section">
+                <h2 class="section-title">Базовая оценка</h2>
+                <p class="section-hint">
+                    Заполните 5 обязательных полей — этого достаточно для расчёта.
+                    Остальные параметры уточняют оценку.
+                </p>
+
+                <div class="grid">
+                    <div class="field">
+                        <label for="GrLivArea">Жилая площадь, <span class="unit">м²</span><b class="req">*</b></label>
+                        <input type="number" id="GrLivArea" name="GrLivArea" step="1" min="1" placeholder="159" required>
+                        <small class="err" data-err="GrLivArea"></small>
+                    </div>
+
+                    <div class="field">
+                        <label for="LotArea">Площадь участка, <span class="unit">м²</span><b class="req">*</b></label>
+                        <input type="number" id="LotArea" name="LotArea" step="1" min="1" placeholder="785" required>
+                        <small class="err" data-err="LotArea"></small>
+                    </div>
+
+                    <div class="field">
+                        <label for="YearBuilt">Год постройки<b class="req">*</b></label>
+                        <input type="number" id="YearBuilt" name="YearBuilt" min="1801" max="2030" step="1" placeholder="2003" required>
+                        <small class="err" data-err="YearBuilt"></small>
+                    </div>
+
+                    <div class="field">
+                        <label for="OverallQual">Качество материалов и отделки<b class="req">*</b></label>
+                        <div class="scale-row">
+                            <input type="range" id="OverallQual" name="OverallQual" min="1" max="10" step="1" value="6">
+                            <output class="scale-out" data-out="OverallQual">6</output>
+                        </div>
+                        <small class="scale-legend">1 — очень плохое · 5 — среднее · 10 — элитное</small>
+                        <small class="err" data-err="OverallQual"></small>
+                    </div>
+
+                    <div class="field">
+                        <label for="OverallCond">Текущее состояние дома<b class="req">*</b></label>
+                        <div class="scale-row">
+                            <input type="range" id="OverallCond" name="OverallCond" min="1" max="10" step="1" value="5">
+                            <output class="scale-out" data-out="OverallCond">5</output>
+                        </div>
+                        <small class="scale-legend">1 — требует ремонта · 5 — нормальное · 10 — безупречное</small>
+                        <small class="err" data-err="OverallCond"></small>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ---------- Аккордеоны ---------- -->
+
+            <details class="section acc" open>
+                <summary>
+                    <span class="acc-title">Комнаты, санузлы и кухня</span>
+                    <span class="acc-count" data-count="rooms"></span>
+                </summary>
+                <div class="grid">
+                    <div class="field">
+                        <label for="FullBath">Ванные комнаты</label>
+                        <input type="number" id="FullBath" name="FullBath" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="BsmtFullBath">Ванные в подвале</label>
+                        <input type="number" id="BsmtFullBath" name="BsmtFullBath" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="BsmtHalfBath">Туалеты в подвале</label>
+                        <input type="number" id="BsmtHalfBath" name="BsmtHalfBath" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="KitchenAbvGr">Количество кухонь</label>
+                        <input type="number" id="KitchenAbvGr" name="KitchenAbvGr" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="KitchenQual">Качество отделки кухни</label>
+                        <select id="KitchenQual" name="KitchenQual" data-dict>
+                            <option value="">— не указано —</option>
+                            <option value="Ex">Отличное</option>
+                            <option value="Gd">Хорошее</option>
+                            <option value="TA">Среднее / типовое</option>
+                            <option value="Fa">Плохое</option>
+                            <option value="Po">Очень плохое</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="LowQualFinSF">Площадь помещений с низкой отделкой, <span class="unit">м²</span></label>
+                        <input type="number" id="LowQualFinSF" name="LowQualFinSF" min="0" step="1" placeholder="—">
+                    </div>
+                </div>
+            </details>
+
+            <details class="section acc">
+                <summary>
+                    <span class="acc-title">Гараж</span>
+                    <span class="acc-count" data-count="garage"></span>
+                </summary>
+                <div class="grid">
+                    <div class="field">
+                        <label for="GarageType">Тип гаража</label>
+                        <select id="GarageType" name="GarageType">
+                            <option value="">— не указано —</option>
+                            <option value="NoGarage">Гаража нет</option>
+                            <option value="Attchd">Пристроенный</option>
+                            <option value="Detchd">Отдельно стоящий</option>
+                            <option value="BuiltIn">Встроенный</option>
+                            <option value="Basment">В подвале</option>
+                            <option value="CarPort">Навес для авто</option>
+                            <option value="2Types">Несколько типов</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="GarageArea">Площадь гаража, <span class="unit">м²</span></label>
+                        <input type="number" id="GarageArea" name="GarageArea" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="GarageQual">Качество гаража</label>
+                        <select id="GarageQual" name="GarageQual" data-dict>
+                            <option value="">— не указано —</option>
+                            <option value="Ex">Отличное</option>
+                            <option value="Gd">Хорошее</option>
+                            <option value="TA">Среднее / типовое</option>
+                            <option value="Fa">Плохое</option>
+                            <option value="Po">Очень плохое</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="GarageCond">Состояние гаража</label>
+                        <select id="GarageCond" name="GarageCond" data-dict>
+                            <option value="">— не указано —</option>
+                            <option value="Ex">Отличное</option>
+                            <option value="Gd">Хорошее</option>
+                            <option value="TA">Среднее / типовое</option>
+                            <option value="Fa">Плохое</option>
+                            <option value="Po">Очень плохое</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
+
+            <details class="section acc">
+                <summary>
+                    <span class="acc-title">Участок, террасы и бассейн</span>
+                    <span class="acc-count" data-count="lot"></span>
+                </summary>
+                <div class="grid">
+                    <div class="field">
+                        <label for="OpenPorchSF">Открытая веранда, <span class="unit">м²</span></label>
+                        <input type="number" id="OpenPorchSF" name="OpenPorchSF" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="EnclosedPorch">Закрытая веранда, <span class="unit">м²</span></label>
+                        <input type="number" id="EnclosedPorch" name="EnclosedPorch" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="WoodDeckSF">Деревянная терраса, <span class="unit">м²</span></label>
+                        <input type="number" id="WoodDeckSF" name="WoodDeckSF" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="ScreenPorch">Веранда с сеткой, <span class="unit">м²</span></label>
+                        <input type="number" id="ScreenPorch" name="ScreenPorch" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="SsnPorch3">Летняя веранда, <span class="unit">м²</span></label>
+                        <input type="number" id="SsnPorch3" name="SsnPorch3" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="PoolArea">Бассейн, <span class="unit">м²</span></label>
+                        <input type="number" id="PoolArea" name="PoolArea" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="Fireplaces">Камины</label>
+                        <input type="number" id="Fireplaces" name="Fireplaces" min="0" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="MiscVal">Прочие постройки, $</label>
+                        <input type="number" id="MiscVal" name="MiscVal" min="0" step="1" placeholder="—">
+                    </div>
+                </div>
+            </details>
+
+            <details class="section acc">
+                <summary>
+                    <span class="acc-title">Конструктив и инженерные системы</span>
+                    <span class="acc-count" data-count="build"></span>
+                </summary>
+                <div class="grid">
+                    <div class="field">
+                        <label for="MSSubClass">Тип здания (код)</label>
+                        <select id="MSSubClass" name="MSSubClass">
+                            <option value="">— не указано —</option>
+                            <option value="20">1 этаж, новое</option>
+                            <option value="30">1 этаж</option>
+                            <option value="40">1,5 этажа</option>
+                            <option value="45">Дом с мансардой</option>
+                            <option value="50">2 этажа</option>
+                            <option value="60">2 этажа, новое</option>
+                            <option value="70">2,5 этажа</option>
+                            <option value="75">3 этажа</option>
+                            <option value="80">3+ этажа</option>
+                            <option value="85">Таунхаус</option>
+                            <option value="90">Дуплекс</option>
+                            <option value="120">Тайм-шеринг</option>
+                            <option value="160">Спальный дом</option>
+                            <option value="180">Многоуровневый</option>
+                            <option value="190">Прочее</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="YearRemodAdd">Год реконструкции</label>
+                        <input type="number" id="YearRemodAdd" name="YearRemodAdd" min="1801" max="2030" step="1" placeholder="—">
+                    </div>
+                    <div class="field">
+                        <label for="Foundation">Фундамент</label>
+                        <select id="Foundation" name="Foundation">
+                            <option value="">— не указано —</option>
+                            <option value="BrkTil">Кирпичная кладка</option>
+                            <option value="CBlock">Бетонные блоки</option>
+                            <option value="PConc">Залитый бетон</option>
+                            <option value="Slab">Плита</option>
+                            <option value="Stone">Камень</option>
+                            <option value="Wood">Дерево</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="CentralAir">Кондиционер</label>
+                        <select id="CentralAir" name="CentralAir">
+                            <option value="">— не указано —</option>
+                            <option value="Y">Есть</option>
+                            <option value="N">Нет</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="Electrical">Электрика</label>
+                        <select id="Electrical" name="Electrical">
+                            <option value="">— не указано —</option>
+                            <option value="SBrkr">Автоматы</option>
+                            <option value="FuseF">Предохранители</option>
+                            <option value="FuseA">Автоматы, 30–50 А</option>
+                            <option value="FuseP">Фасадные предохранители</option>
+                            <option value="Mix">Смешанная</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="HeatingQC">Качество отопления</label>
+                        <select id="HeatingQC" name="HeatingQC" data-dict>
+                            <option value="">— не указано —</option>
+                            <option value="Ex">Отличное</option>
+                            <option value="Gd">Хорошее</option>
+                            <option value="TA">Среднее / типовое</option>
+                            <option value="Fa">Плохое</option>
+                            <option value="Po">Очень плохое</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="ExterQual">Качество наружной отделки</label>
+                        <select id="ExterQual" name="ExterQual" data-dict>
+                            <option value="">— не указано —</option>
+                            <option value="Ex">Отличное</option>
+                            <option value="Gd">Хорошее</option>
+                            <option value="TA">Среднее / типовое</option>
+                            <option value="Fa">Плохое</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="ExterCond">Состояние наружной отделки</label>
+                        <select id="ExterCond" name="ExterCond" data-dict>
+                            <option value="">— не указано —</option>
+                            <option value="Ex">Отличное</option>
+                            <option value="Gd">Хорошее</option>
+                            <option value="TA">Среднее / типовое</option>
+                            <option value="Fa">Плохое</option>
+                            <option value="Po">Очень плохое</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="BsmtQual">Высота подвала</label>
+                        <select id="BsmtQual" name="BsmtQual" data-dict>
+                            <option value="">— не указано —</option>
+                            <option value="Ex">Отличная (≥ 100")</option>
+                            <option value="Gd">Хорошая (90–99")</option>
+                            <option value="TA">Типовая (80–89")</option>
+                            <option value="Fa">Низкая (< 70")</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="BsmtCond">Состояние подвала</label>
+                        <select id="BsmtCond" name="BsmtCond" data-dict>
+                            <option value="">— не указано —</option>
+                            <option value="Ex">Отличное</option>
+                            <option value="Gd">Хорошее</option>
+                            <option value="TA">Среднее / типовое</option>
+                            <option value="Fa">Плохое</option>
+                            <option value="Po">Очень плохое</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
+
+            <div class="actions">
+                <button type="button" class="btn btn-ghost" id="btn-demo">Заполнить пример</button>
+                <button type="button" class="btn btn-ghost" id="btn-reset">Очистить</button>
+                <button type="submit" class="btn btn-primary" id="btn-submit">Рассчитать стоимость</button>
+            </div>
+        </form>
+
+        <!-- ==================== РЕЗУЛЬТАТ ==================== -->
+        <aside class="card result-card" id="result-card">
+            <h2 class="section-title">Оценка</h2>
+
+            <div class="placeholder" id="placeholder">
+                <div class="ph-icon">🏠</div>
+                <p>Заполните обязательные поля и нажмите<br>«Рассчитать стоимость»</p>
+            </div>
+
+            <div class="result hidden" id="result">
+                <div class="price" id="price">—</div>
+                <div class="price-label">Ориентировочная стоимость</div>
+                <div class="range" id="range"></div>
+                <div class="meter" id="meter">
+                    <div class="meter-fill" id="meter-fill"></div>
+                    <div class="meter-needle" id="meter-needle"></div>
+                </div>
+                <p class="note" id="note"></p>
+                <div class="facts" id="facts"></div>
+            </div>
+
+            <div class="alert hidden" id="alert"></div>
+
+            <p class="disclaimer">
+                Расчёт носит справочный характер: модель обучена на исторических данных
+                района Ames (США, 2006–2010 гг.) и не является официальной оценкой.
+                Погрешность модели — около 10.7% (MAPE).
+            </p>
+        </aside>
+
+    </main>
+
+    <footer class="foot">
+        Ames Housing · FastAPI + CatBoost · <a href="/docs">OpenAPI</a>
+    </footer>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
